@@ -48,7 +48,7 @@ public class TiktokSearchTest {
     private int width;
 
     private OkHttpClient client = new OkHttpClient();
-    private static final String KEY_SERVER = "http://10.143.15.226:4396";
+    private static final String KEY_SERVER = "http://10.160.33.75:4396";
     private Random random = new Random();
 
 
@@ -81,7 +81,7 @@ public class TiktokSearchTest {
     public void walkAround() {
         String key = null;
         int failCount = 0;
-        int hangoutCountdown = 2;
+        int hangoutCountdown = 1;
         while (true) {
             if (failCount == 0) {
                 key = getSearchKey();
@@ -89,13 +89,16 @@ public class TiktokSearchTest {
             if (key == null) {
                 break;
             }
+            Log.d(LOG_TAG, "search start");
             boolean isSucceed = doSearch(key);
+            Log.d(LOG_TAG, "search end");
             if (!isSucceed) {
                 failCount++;
-                if (failCount >= 3) {
+                if (failCount >= 5) {
                     throw new RuntimeException("DeviceScrapped");
                 }
-                restartApp();
+                restartApp(failCount == 3);
+                continue;
             }
             failCount = 0;
             hangoutCountdown--;
@@ -127,7 +130,7 @@ public class TiktokSearchTest {
         UiObject2 searchResult = mDevice.findObject(By.res(TARGET_PACKAGE, "exk").hasChild(By.pkg(TARGET_PACKAGE)));
         if (searchResult != null) {
             for (int i = 0; i < 3; i++) {
-                searchResult.scroll(Direction.DOWN, 2 + random.nextFloat() * 2, 800 + random.nextInt(400) * 160);
+                searchResult.scroll(Direction.DOWN, 3 + random.nextFloat() * 2, 800 + random.nextInt(400) * 160);
                 SystemClock.sleep(100 + random.nextInt(200));
             }
             return true;
@@ -137,6 +140,7 @@ public class TiktokSearchTest {
     }
 
     private void doHangOut() {
+        Log.d(LOG_TAG, "hangout start");
         for (int i = 0; i < 3; i++) {
             UiObject2 goSearchBtn = mDevice.findObject(By.res(TARGET_PACKAGE, "dy3"));
             if (goSearchBtn != null) {
@@ -148,10 +152,12 @@ public class TiktokSearchTest {
                 cancelSearchBtn.click();
             }
         }
-        for (int i = 0; i < 1 + random.nextInt(2); i++) {
+        for (int i = 0; i < 1 + random.nextInt(1); i++) {
             scrollRecommend();
-            SystemClock.sleep(1000 + random.nextInt(1000));
+            SystemClock.sleep(500 + random.nextInt(1000));
         }
+        tryPauseVideo(1500);
+        Log.d(LOG_TAG, "hangout end");
     }
 
     @After
@@ -196,48 +202,46 @@ public class TiktokSearchTest {
                 By.res(TARGET_PACKAGE, "l__"),
                 By.res(TARGET_PACKAGE, "bco"),
                 By.res(TARGET_PACKAGE, "eeh"),
-//                By.res(TARGET_PACKAGE, "kls"),
                 By.res(TARGET_PACKAGE, "ejw"),
                 By.res("com.android.packageinstaller", "permission_allow_button")
+//                By.res(TARGET_PACKAGE, "kls"),
         };
         // 等待视频或弹窗，标志启动完成
-        Log.i(LOG_TAG, "detect app boot finish: " + waitOne(selectors, 60000, 200, 0));
-        // 如果有视频，暂停视频来提速
-        pauseRecommendVideo();
+        BySelector foundSelector = waitOne(selectors, 20000, 200, 0);
+        Log.i(LOG_TAG, "detect app boot finish: " + (foundSelector != null));
+        if (foundSelector == selectors[0]) {
+            tryPauseVideo(0);
+        }
 
         BySelector[] popUpSelectors = Arrays.copyOfRange(selectors, 1, selectors.length);
-        while (waitOne(popUpSelectors, 3000, 200, 500)) {
-            Log.i(LOG_TAG, "found popup");
-            UiObject2 uiObject2;
-            uiObject2 = mDevice.findObject(By.res(TARGET_PACKAGE, "bco"));
-            if (uiObject2 != null) {
-                uiObject2.click();
-                continue;
-            }
-            uiObject2 = mDevice.findObject(By.res(TARGET_PACKAGE, "eeh"));
-            if (uiObject2 != null) {
-                uiObject2.click();
-                continue;
-            }
-            uiObject2 = mDevice.findObject(By.res(TARGET_PACKAGE, "ejw"));
-            if (uiObject2 != null) {
-                uiObject2.click();
-                continue;
-            }
-            uiObject2 = mDevice.findObject(By.res("com.android.packageinstaller", "permission_allow_button"));
-            if (uiObject2 != null) {
-                uiObject2.click();
-                continue;
+        int popupCount = 0;
+        while ((foundSelector = waitOne(popUpSelectors, 3000, 500, 500)) != null) {
+            Log.i(LOG_TAG, "found popup: " + foundSelector.toString());
+            mDevice.findObject((foundSelector)).click();
+
+            popupCount++;
+            // 通常3个popup后，为上滑指引
+            if (popupCount >= 3) {
+                SystemClock.sleep(2000);
+                scrollRecommend();
+                SystemClock.sleep(500);
+                scrollRecommend();
+                tryPauseVideo(1500);
             }
         }
-        // always swipe up
+        // 保底，再上滑两次
+        Log.i(LOG_TAG, "swipe before search");
         scrollRecommend();
-        SystemClock.sleep(1000);
+        SystemClock.sleep(500);
         scrollRecommend();
+        tryPauseVideo(1500);
     }
 
-    private void restartApp() {
+    private void restartApp(boolean clearData) {
         forceCloseApp();
+        if (clearData) {
+            clearAppData();
+        }
         SystemClock.sleep(1000);
         launchApp();
         launchAppFirstTime();
@@ -247,7 +251,13 @@ public class TiktokSearchTest {
         try {
             mDevice.executeShellCommand("am force-stop " + TARGET_PACKAGE);
         } catch (IOException e) {
-            e.printStackTrace();
+        }
+    }
+
+    private void clearAppData() {
+        try {
+            mDevice.executeShellCommand("pm clear " + TARGET_PACKAGE);
+        } catch (IOException e) {
         }
     }
 
@@ -255,6 +265,11 @@ public class TiktokSearchTest {
         if (!mDevice.hasObject(By.res(TARGET_PACKAGE, "fee").hasChild(By.clazz("android.widget.ImageView")))) {
             mDevice.click(width / 2, height / 2);
         }
+    }
+
+    private void tryPauseVideo(long delay) {
+        SystemClock.sleep(delay);
+        mDevice.click(width / 2, height / 3);
     }
 
     private void scrollRecommend() {
@@ -279,11 +294,11 @@ public class TiktokSearchTest {
         return resolveInfo.activityInfo.packageName;
     }
 
-    private boolean waitOne(BySelector[] selectors, long timeout, long interval, long minWait) {
+    private BySelector waitOne(BySelector[] selectors, long timeout, long interval, long minWait) {
         long startTime = SystemClock.uptimeMillis();
 
-        boolean hasOne = false;
-        for (long elapsedTime = 0; !hasOne; elapsedTime = SystemClock.uptimeMillis() - startTime) {
+        BySelector hasOne = null;
+        for (long elapsedTime = 0; hasOne == null; elapsedTime = SystemClock.uptimeMillis() - startTime) {
             if (elapsedTime >= timeout) {
                 break;
             }
@@ -291,7 +306,7 @@ public class TiktokSearchTest {
             SystemClock.sleep(interval);
             for (int i = 0; i < selectors.length; i++) {
                 if (mDevice.hasObject(selectors[i])) {
-                    hasOne = true;
+                    hasOne = selectors[i];
                     break;
                 }
             }

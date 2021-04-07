@@ -12,6 +12,7 @@ import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.Direction;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.UiObject2;
+import androidx.test.uiautomator.Until;
 
 import org.junit.After;
 import org.junit.Before;
@@ -30,6 +31,9 @@ import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentat
 @RunWith(AndroidJUnit4.class)
 @SdkSuppress(minSdkVersion = 18)
 public class TestTest {
+    private static final String LOG_TAG = "TiktokSearchTest";
+    private static final String TARGET_PACKAGE = "com.ss.android.ugc.aweme";
+
     private UiDevice mDevice;
     private int height;
     private int width;
@@ -49,12 +53,29 @@ public class TestTest {
 //            e.printStackTrace();
 //        }
 //        throw new RuntimeException("over");
-        scrollFirstPage();
+//        scrollFirstPage();
+        checkBtn();
     }
 
     @After
     public void logDone() {
         Log.e("Mac", "Yeah Done!");
+    }
+
+    private void checkBtn() {
+        for (int i = 0; i < 100; i++) {
+            UiObject2 uiObject2 = mDevice.findObject(By.res(TARGET_PACKAGE, "dy3"));
+            Log.i(LOG_TAG, SystemClock.currentThreadTimeMillis() + " " + (uiObject2 == null));
+//            Log.i(LOG_TAG, SystemClock.currentThreadTimeMillis() + "");
+            SystemClock.sleep(100);
+        }
+    }
+
+    private void checkBtn2() {
+        Log.i(LOG_TAG, "begin " + SystemClock.currentThreadTimeMillis());
+        mDevice.wait(Until.findObject(By.res(TARGET_PACKAGE, "dy3")), 60000);
+        Log.i(LOG_TAG, "finish " + SystemClock.currentThreadTimeMillis());
+        SystemClock.sleep(10000);
     }
 
     private void scrollFirstPage() {
