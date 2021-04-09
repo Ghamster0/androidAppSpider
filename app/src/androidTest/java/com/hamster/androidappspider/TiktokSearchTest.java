@@ -11,6 +11,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SdkSuppress;
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.BySelector;
+import androidx.test.uiautomator.Configurator;
 import androidx.test.uiautomator.Direction;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.UiObject2;
@@ -54,6 +55,8 @@ public class TiktokSearchTest {
 
     @Before
     public void startMainActivityFromHomeScreen() {
+        // 解决selector长时间等待视图Idle导致不返回， 0.5s时报“StaleObjectException”
+        Configurator.getInstance().setWaitForIdleTimeout(1000);
         // Initialize UiDevice instance
         mDevice = UiDevice.getInstance(getInstrumentation());
         height = mDevice.getDisplayHeight();
@@ -81,7 +84,7 @@ public class TiktokSearchTest {
     public void walkAround() {
         String key = null;
         int failCount = 0;
-        int hangoutCountdown = 1;
+        int hangoutCountdown = 3;
         while (true) {
             if (failCount == 0) {
                 key = getSearchKey();
@@ -97,14 +100,14 @@ public class TiktokSearchTest {
                 if (failCount >= 5) {
                     throw new RuntimeException("DeviceScrapped");
                 }
-                restartApp(failCount == 3);
+                restartApp(failCount >= 3);
                 continue;
             }
             failCount = 0;
             hangoutCountdown--;
             if (hangoutCountdown <= 0) {
                 doHangOut();
-                hangoutCountdown = 1 + random.nextInt(1);
+                hangoutCountdown = 2 + random.nextInt(1);
             }
         }
     }
@@ -118,7 +121,7 @@ public class TiktokSearchTest {
         UiObject2 searchInputClearBtn = mDevice.findObject(By.res(TARGET_PACKAGE, "qw"));
         if (searchInputClearBtn != null) {
             searchInputClearBtn.click();
-            SystemClock.sleep(100 + random.nextInt(400));
+            SystemClock.sleep(100 + random.nextInt(200));
         }
         searchInput.click();
         searchInput.setText(key);
@@ -127,10 +130,12 @@ public class TiktokSearchTest {
 
         // select scrollable video node that has valid content/child
         mDevice.wait(Until.hasObject(By.res(TARGET_PACKAGE, "exk")), 10000);
+        SystemClock.sleep(500);
         UiObject2 searchResult = mDevice.findObject(By.res(TARGET_PACKAGE, "exk").hasChild(By.pkg(TARGET_PACKAGE)));
         if (searchResult != null) {
-            for (int i = 0; i < 3; i++) {
-                searchResult.scroll(Direction.DOWN, 3 + random.nextFloat() * 2, 800 + random.nextInt(400) * 160);
+            for (int i = 0; i < 4; i++) {
+//                searchResult.scroll(Direction.DOWN, 3 + random.nextFloat() * 2, 800 + random.nextInt(400) * 160);
+                searchResult.scroll(Direction.DOWN, 2.1f, 4000);
                 SystemClock.sleep(100 + random.nextInt(200));
             }
             return true;
@@ -156,7 +161,6 @@ public class TiktokSearchTest {
             scrollRecommend();
             SystemClock.sleep(500 + random.nextInt(1000));
         }
-        tryPauseVideo(1500);
         Log.d(LOG_TAG, "hangout end");
     }
 
@@ -207,34 +211,19 @@ public class TiktokSearchTest {
 //                By.res(TARGET_PACKAGE, "kls"),
         };
         // 等待视频或弹窗，标志启动完成
-        BySelector foundSelector = waitOne(selectors, 20000, 200, 0);
+        BySelector foundSelector = waitOne(selectors, 15000, 200, 0);
         Log.i(LOG_TAG, "detect app boot finish: " + (foundSelector != null));
-        if (foundSelector == selectors[0]) {
-            tryPauseVideo(0);
-        }
 
         BySelector[] popUpSelectors = Arrays.copyOfRange(selectors, 1, selectors.length);
-        int popupCount = 0;
         while ((foundSelector = waitOne(popUpSelectors, 3000, 500, 500)) != null) {
             Log.i(LOG_TAG, "found popup: " + foundSelector.toString());
             mDevice.findObject((foundSelector)).click();
-
-            popupCount++;
-            // 通常3个popup后，为上滑指引
-            if (popupCount >= 3) {
-                SystemClock.sleep(2000);
-                scrollRecommend();
-                SystemClock.sleep(500);
-                scrollRecommend();
-                tryPauseVideo(1500);
-            }
         }
-        // 保底，再上滑两次
+        // 上滑两次，跳过引导
         Log.i(LOG_TAG, "swipe before search");
         scrollRecommend();
         SystemClock.sleep(500);
         scrollRecommend();
-        tryPauseVideo(1500);
     }
 
     private void restartApp(boolean clearData) {
@@ -265,11 +254,6 @@ public class TiktokSearchTest {
         if (!mDevice.hasObject(By.res(TARGET_PACKAGE, "fee").hasChild(By.clazz("android.widget.ImageView")))) {
             mDevice.click(width / 2, height / 2);
         }
-    }
-
-    private void tryPauseVideo(long delay) {
-        SystemClock.sleep(delay);
-        mDevice.click(width / 2, height / 3);
     }
 
     private void scrollRecommend() {
