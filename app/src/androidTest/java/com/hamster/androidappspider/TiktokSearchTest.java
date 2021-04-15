@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
+import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -68,18 +69,8 @@ public class TiktokSearchTest {
         mDevice.wait(Until.hasObject(By.pkg(launcherPackage).depth(0)), LAUNCH_TIMEOUT);
 
         launchApp();
-        launchAppFirstTime();
     }
 
-    /**
-     * 输入查询词，点击搜索并滚屏
-     * <p>
-     * Resource Id表：
-     * dy3 呼出搜索按钮
-     * aia 搜索框
-     * kig 取消搜索按钮/搜索按钮
-     * qw 清空搜索框
-     */
     @Test
     public void walkAround() {
         String key = null;
@@ -92,12 +83,11 @@ public class TiktokSearchTest {
             if (key == null) {
                 break;
             }
-            Log.d(LOG_TAG, "search start");
             boolean isSucceed = doSearch(key);
-            Log.d(LOG_TAG, "search end");
             if (!isSucceed) {
                 failCount++;
                 if (failCount >= 5) {
+                    restoreSearchKey(key);
                     throw new RuntimeException("DeviceScrapped");
                 }
                 restartApp(failCount >= 3);
@@ -112,6 +102,13 @@ public class TiktokSearchTest {
         }
     }
 
+    /**
+     * Resource Id表：
+     * dy3 呼出搜索按钮
+     * aia 搜索框
+     * kig 取消搜索按钮/搜索按钮
+     * qw 清空搜索框
+     */
     private boolean doSearch(String key) {
         UiObject2 searchInput = mDevice.findObject(By.res(TARGET_PACKAGE, "aia"));
         if (searchInput == null) {
@@ -134,8 +131,7 @@ public class TiktokSearchTest {
         UiObject2 searchResult = mDevice.findObject(By.res(TARGET_PACKAGE, "exk").hasChild(By.pkg(TARGET_PACKAGE)));
         if (searchResult != null) {
             for (int i = 0; i < 4; i++) {
-//                searchResult.scroll(Direction.DOWN, 3 + random.nextFloat() * 2, 800 + random.nextInt(400) * 160);
-                searchResult.scroll(Direction.DOWN, 2.1f, 4000);
+                searchResult.scroll(Direction.DOWN, 2 + random.nextFloat() * 0.2f, 4000 + random.nextInt(1000));
                 SystemClock.sleep(100 + random.nextInt(200));
             }
             return true;
@@ -182,6 +178,24 @@ public class TiktokSearchTest {
         return null;
     }
 
+    private void restoreSearchKey(String key) {
+        HttpUrl.Builder builder = HttpUrl.parse(KEY_SERVER).newBuilder();
+        builder.addQueryParameter("restore", key);
+        Request request = new Request.Builder().url(builder.build()).build();
+        try {
+            client.newCall(request).execute();
+        } catch (IOException e) {
+        }
+    }
+
+    /**
+     * 弹窗Resource表：
+     * bco 个人信息保护指引
+     * kls 上滑查看更多视频
+     * eeh 儿童、青少年使用须知
+     * ejw 检测更新，以后再说
+     * com.android.packageinstaller:id/permission_allow_button 系统权限申请弹窗
+     */
     private void launchApp() {
         Context context = getApplicationContext();
         final Intent intent = context.getPackageManager()
@@ -191,28 +205,20 @@ public class TiktokSearchTest {
 
         // Wait for the app to appear
         mDevice.wait(Until.hasObject(By.pkg(TARGET_PACKAGE).depth(0)), LAUNCH_TIMEOUT);
-    }
 
-    /**
-     * 处理应用首次启动时，权限确认弹窗
-     * bco 个人信息保护指引
-     * kls 上滑查看更多视频
-     * eeh 儿童、青少年使用须知
-     * ejw 检测更新，以后再说
-     * com.android.packageinstaller:id/permission_allow_button 系统权限申请弹窗
-     */
-    private void launchAppFirstTime() {
         BySelector[] selectors = {
                 By.res(TARGET_PACKAGE, "l__"),
                 By.res(TARGET_PACKAGE, "bco"),
                 By.res(TARGET_PACKAGE, "eeh"),
                 By.res(TARGET_PACKAGE, "ejw"),
                 By.res("com.android.packageinstaller", "permission_allow_button")
-//                By.res(TARGET_PACKAGE, "kls"),
         };
         // 等待视频或弹窗，标志启动完成
-        BySelector foundSelector = waitOne(selectors, 15000, 200, 0);
-        Log.i(LOG_TAG, "detect app boot finish: " + (foundSelector != null));
+        BySelector foundSelector = waitOne(selectors, 30000, 200, 0);
+        if (foundSelector == null) {
+            throw new RuntimeException("BootMayNotFinish");
+        }
+        Log.i(LOG_TAG, "APP boot finish");
 
         BySelector[] popUpSelectors = Arrays.copyOfRange(selectors, 1, selectors.length);
         while ((foundSelector = waitOne(popUpSelectors, 3000, 500, 500)) != null) {
@@ -229,30 +235,20 @@ public class TiktokSearchTest {
     private void restartApp(boolean clearData) {
         forceCloseApp();
         if (clearData) {
-            clearAppData();
+            try {
+                mDevice.executeShellCommand("pm clear " + TARGET_PACKAGE);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
         SystemClock.sleep(1000);
         launchApp();
-        launchAppFirstTime();
     }
 
     private void forceCloseApp() {
         try {
             mDevice.executeShellCommand("am force-stop " + TARGET_PACKAGE);
         } catch (IOException e) {
-        }
-    }
-
-    private void clearAppData() {
-        try {
-            mDevice.executeShellCommand("pm clear " + TARGET_PACKAGE);
-        } catch (IOException e) {
-        }
-    }
-
-    private void pauseRecommendVideo() {
-        if (!mDevice.hasObject(By.res(TARGET_PACKAGE, "fee").hasChild(By.clazz("android.widget.ImageView")))) {
-            mDevice.click(width / 2, height / 2);
         }
     }
 
