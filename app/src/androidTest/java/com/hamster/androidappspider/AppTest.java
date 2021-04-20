@@ -1,8 +1,6 @@
 package com.hamster.androidappspider;
 
 import android.os.RemoteException;
-import android.os.SystemClock;
-import android.util.Log;
 
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.BySelector;
@@ -14,11 +12,7 @@ import androidx.test.uiautomator.Until;
 import org.junit.Before;
 import org.junit.Test;
 
-import okhttp3.internal.Util;
-
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
-import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.junit.Assert.assertThat;
 
 public class AppTest {
     private static final String LOG_TAG = "TiktokSearchTest";

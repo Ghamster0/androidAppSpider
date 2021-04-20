@@ -230,8 +230,7 @@ public class TiktokSearchTest {
 
         // select scrollable video node that has valid content/child
         mDevice.wait(Until.hasObject(By.res(TARGET_PACKAGE, "exk")), 10000);
-        SystemClock.sleep(500);
-        UiObject2 searchResult = mDevice.findObject(By.res(TARGET_PACKAGE, "exk").hasChild(By.pkg(TARGET_PACKAGE)));
+        UiObject2 searchResult = mDevice.wait(Until.findObject(By.res(TARGET_PACKAGE, "exk").hasChild(By.pkg(TARGET_PACKAGE))), 6000);
         if (searchResult != null) {
             for (int i = 0; i < 4; i++) {
                 try {
